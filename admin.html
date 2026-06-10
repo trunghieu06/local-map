@@ -1,0 +1,273 @@
+<!DOCTYPE html>
+<html lang="vi">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>VPS Admin — Quản Lý Đồ Thị Điều Hướng</title>
+  <meta name="description" content="Admin panel để quản lý nodes và edges của hệ thống VPS">
+  <link rel="stylesheet" href="css/style.css">
+
+  <script type="importmap">
+  {
+    "imports": {
+      "three":          "https://unpkg.com/three@0.160.0/build/three.module.js",
+      "three/addons/":  "https://unpkg.com/three@0.160.0/examples/jsm/"
+    }
+  }
+  </script>
+
+  <style>
+    /* Admin-specific overrides */
+    body { overflow: hidden; }
+    #app { display:flex; flex-direction:column; height:100vh; }
+
+    .save-bar {
+      position: fixed;
+      bottom: 0; left: 0; right: 0;
+      background: var(--bg-secondary);
+      border-top: 1px solid var(--border);
+      padding: 12px 20px;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 12px;
+      z-index: 500;
+    }
+    .save-bar-info { font-size: 12px; color: var(--text-muted); }
+    .save-actions  { display:flex; gap:8px; }
+
+    .btn-save {
+      padding: 9px 22px;
+      background: linear-gradient(135deg, var(--accent-green), #009955);
+      border: none; border-radius: var(--radius-sm);
+      color: #000; font-family: inherit; font-size: 13px; font-weight: 700;
+      cursor: pointer; transition: var(--transition);
+      box-shadow: 0 4px 16px rgba(0,255,136,0.25);
+    }
+    .btn-save:hover { transform:translateY(-1px); box-shadow:0 6px 24px rgba(0,255,136,0.35); }
+
+    .unsaved-dot {
+      display: inline-block; width: 7px; height: 7px;
+      background: var(--accent-amber); border-radius: 50%;
+      margin-right: 6px; animation: pulse-scale 1.5s infinite;
+    }
+
+    .tab-bar {
+      display: flex; gap: 0;
+      border-bottom: 1px solid var(--border);
+      background: var(--bg-secondary);
+      flex-shrink: 0;
+    }
+    .tab-btn {
+      padding: 11px 20px;
+      font-size: 12px; font-weight: 600; font-family: inherit;
+      color: var(--text-muted);
+      background: transparent; border: none; border-bottom: 2px solid transparent;
+      cursor: pointer; transition: var(--transition);
+      display: flex; align-items: center; gap: 6px;
+    }
+    .tab-btn:hover { color: var(--text-primary); }
+    .tab-btn.active {
+      color: var(--accent-cyan);
+      border-bottom-color: var(--accent-cyan);
+    }
+
+    .tab-panel { display:none; }
+    .tab-panel.active { display:block; }
+
+    .coords-hint {
+      font-size: 11px; color: var(--text-muted);
+      margin-top: 4px; display: block;
+    }
+
+    .weight-auto {
+      font-size: 10px; color: var(--accent-cyan);
+      margin-top: 3px; display: block;
+    }
+    
+    .editing-row td { background: rgba(0,212,255,0.06) !important; }
+    
+    .admin-body {
+      flex:1; display:flex; overflow:hidden;
+      padding-bottom: 58px; /* save bar height */
+    }
+  </style>
+</head>
+<body>
+<div id="app">
+
+  <!-- Header -->
+  <header class="header">
+    <div class="header-left">
+      <div class="header-logo">⚙️</div>
+      <div>
+        <h1 class="header-title">VPS Admin</h1>
+        <span class="header-subtitle">Quản Lý Đồ Thị Điều Hướng</span>
+      </div>
+    </div>
+    <nav class="header-nav">
+      <a href="qr-print.html" target="_blank" class="btn-secondary">🖨️ In QR</a>
+      <a href="ar.html" class="btn-secondary" style="color:var(--accent-cyan); border-color:rgba(0,212,255,0.3);">📷 AR</a>
+      <a href="index.html" class="btn-secondary">🗺️ Về trang chỉ đường</a>
+    </nav>
+  </header>
+
+  <!-- Body -->
+  <div class="admin-body">
+
+    <!-- LEFT: Forms + Tables -->
+    <div class="admin-sidebar" style="width:420px;">
+
+      <!-- Tab bar -->
+      <div class="tab-bar">
+        <button class="tab-btn active" data-tab="nodes">
+          🔵 Nodes <span class="count-badge" id="node-count">0</span>
+        </button>
+        <button class="tab-btn" data-tab="edges">
+          🔗 Edges <span class="count-badge" id="edge-count">0</span>
+        </button>
+      </div>
+
+      <!-- NODES TAB -->
+      <div class="tab-panel active" id="tab-nodes">
+        <div class="panel-section">
+          <h2 class="section-title" id="node-form-title">➕ &nbsp;Thêm Node Mới</h2>
+
+          <div class="form-card">
+            <div class="form-group">
+              <label class="form-label">ID (key định danh)</label>
+              <input id="node-id" class="form-input" placeholder="vd: phong_giao_vien" type="text">
+            </div>
+            <div class="form-group">
+              <label class="form-label">Tên hiển thị (tiếng Việt)</label>
+              <input id="node-label" class="form-input" placeholder="vd: Phòng giáo viên" type="text">
+            </div>
+            <div class="form-row">
+              <div class="form-group" style="margin-bottom:0">
+                <label class="form-label">Tầng</label>
+                <input id="node-floor" class="form-input" placeholder="1 / 1.5 / 2" type="number" step="0.5">
+              </div>
+              <div class="form-group" style="margin-bottom:0">
+                <label class="form-label">X</label>
+                <input id="node-x" class="form-input" placeholder="0.00" type="number" step="0.01">
+              </div>
+            </div>
+            <div class="form-row" style="margin-top:8px;">
+              <div class="form-group" style="margin-bottom:0">
+                <label class="form-label">Y</label>
+                <input id="node-y" class="form-input" placeholder="0.00" type="number" step="0.01">
+              </div>
+              <div class="form-group" style="margin-bottom:0">
+                <label class="form-label">Z</label>
+                <input id="node-z" class="form-input" placeholder="0.00" type="number" step="0.01">
+              </div>
+            </div>
+            <span class="coords-hint">Toạ độ từ point cloud (đơn vị: mét)</span>
+            <div style="display:flex; gap:8px; margin-top:14px;">
+              <button id="btn-add-node" class="btn-primary" style="flex:1;">
+                ➕ Thêm node
+              </button>
+              <button id="btn-cancel-node" class="btn-ghost" style="display:none; margin-top:0; flex:0 0 auto; width:auto; padding:0 16px;">
+                Huỷ
+              </button>
+            </div>
+          </div>
+
+          <h2 class="section-title">
+            Danh Sách Nodes <span class="count-badge" id="node-count2">0</span>
+          </h2>
+          <div class="data-table-wrap">
+            <table class="data-table" id="node-table">
+              <thead>
+                <tr>
+                  <th>ID</th>
+                  <th>Tên</th>
+                  <th>Tầng</th>
+                  <th>X / Y / Z</th>
+                  <th></th>
+                </tr>
+              </thead>
+              <tbody id="node-tbody"></tbody>
+            </table>
+          </div>
+        </div>
+      </div>
+
+      <!-- EDGES TAB -->
+      <div class="tab-panel" id="tab-edges">
+        <div class="panel-section">
+          <h2 class="section-title" id="edge-form-title">➕ &nbsp;Thêm Edge Mới</h2>
+
+          <div class="form-card">
+            <div class="form-row-2">
+              <div class="form-group">
+                <label class="form-label">Từ node</label>
+                <select id="edge-from" class="form-select">
+                  <option value="">— Chọn —</option>
+                </select>
+              </div>
+              <div class="form-group">
+                <label class="form-label">Đến node</label>
+                <select id="edge-to" class="form-select">
+                  <option value="">— Chọn —</option>
+                </select>
+              </div>
+            </div>
+            <div class="form-group">
+              <label class="form-label">Khoảng cách (m)</label>
+              <input id="edge-weight" class="form-input" placeholder="Tự tính nếu để trống" type="number" step="0.01" min="0">
+              <span class="weight-auto">✨ Có thể để trống — sẽ tự tính từ toạ độ 3D</span>
+            </div>
+            <div style="display:flex; gap:8px; margin-top:6px;">
+              <button id="btn-add-edge" class="btn-primary" style="flex:1;">
+                ➕ Thêm edge
+              </button>
+              <button id="btn-cancel-edge" class="btn-ghost" style="display:none; margin-top:0; flex:0 0 auto; width:auto; padding:0 16px;">
+                Huỷ
+              </button>
+            </div>
+          </div>
+
+          <h2 class="section-title">
+            Danh Sách Edges <span class="count-badge" id="edge-count2">0</span>
+          </h2>
+          <div class="data-table-wrap">
+            <table class="data-table" id="edge-table">
+              <thead>
+                <tr>
+                  <th>Từ</th>
+                  <th>Đến</th>
+                  <th>Khoảng cách</th>
+                  <th></th>
+                </tr>
+              </thead>
+              <tbody id="edge-tbody"></tbody>
+            </table>
+          </div>
+        </div>
+      </div>
+
+    </div><!-- /admin-sidebar -->
+
+    <!-- RIGHT: 3D Preview -->
+    <div class="preview-container">
+      <div class="preview-label">👁️ Xem trước đồ thị (không có point cloud)</div>
+      <canvas id="canvas-admin"></canvas>
+    </div>
+
+  </div><!-- /admin-body -->
+
+  <!-- Save Bar -->
+  <div class="save-bar">
+    <span class="save-bar-info" id="save-status">Chưa có thay đổi</span>
+    <div class="save-actions">
+      <button id="btn-reload" class="btn-secondary">🔄 Tải lại</button>
+      <button id="btn-save" class="btn-save">💾 Lưu thay đổi</button>
+    </div>
+  </div>
+
+</div><!-- /app -->
+
+<script type="module" src="js/admin.js"></script>
+</body>
+</html>

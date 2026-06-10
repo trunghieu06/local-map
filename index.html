@@ -1,0 +1,315 @@
+<!DOCTYPE html>
+<html lang="vi">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+  <title>VPS — Campus AR · Bản đồ khuôn viên trường</title>
+  <meta name="description" content="GPS AR — Hiển thị tên toà nhà trong khuôn viên trường qua camera">
+  <link rel="stylesheet" href="css/style.css">
+
+  <style>
+    * {
+      touch-action: manipulation;
+      -webkit-tap-highlight-color: transparent;
+    }
+
+    body, html {
+      width: 100%; height: 100%;
+      overflow: hidden;
+      background: #000;
+      touch-action: none;
+      -webkit-text-size-adjust: 100%;
+    }
+
+    /* ── Camera & Canvas ─────────────────────────────────── */
+    #video {
+      position: fixed; inset: 0;
+      width: 100%; height: 100%;
+      object-fit: cover;
+      z-index: 1;
+    }
+
+    #canvas {
+      position: fixed; inset: 0;
+      width: 100%; height: 100%;
+      z-index: 2;
+      pointer-events: none;
+    }
+
+    /* ── UI Layers ───────────────────────────────────────── */
+    .ui { position: fixed; z-index: 3; }
+
+    /* ── Permission / Splash ─────────────────────────────── */
+    #splash {
+      inset: 0;
+      background: var(--bg-primary);
+      display: flex; flex-direction: column;
+      align-items: center; justify-content: center;
+      gap: 22px; padding: 40px;
+      text-align: center;
+    }
+
+    .splash-orb {
+      width: 110px; height: 110px;
+      border-radius: 50%;
+      background: radial-gradient(circle at 35% 35%, #00d4ff44, #a855f722);
+      border: 2px solid rgba(0,212,255,0.35);
+      display: flex; align-items: center; justify-content: center;
+      font-size: 52px;
+      animation: pulse-scale 2.5s ease-in-out infinite;
+      box-shadow: 0 0 40px rgba(0,212,255,0.2);
+    }
+
+    .splash-title {
+      font-size: 26px; font-weight: 800; letter-spacing: -0.5px;
+      background: linear-gradient(135deg, #00d4ff, #a855f7);
+      -webkit-background-clip: text; -webkit-text-fill-color: transparent;
+      background-clip: text;
+    }
+
+    .splash-desc {
+      font-size: 14px; color: var(--text-secondary);
+      line-height: 1.75; max-width: 290px;
+    }
+
+    .feature-list {
+      display: flex; flex-direction: column; gap: 8px;
+      max-width: 280px; width: 100%;
+    }
+
+    .feature-item {
+      display: flex; align-items: center; gap: 10px;
+      padding: 10px 14px;
+      background: rgba(255,255,255,0.03);
+      border: 1px solid var(--border);
+      border-radius: var(--radius-sm);
+      font-size: 13px; color: var(--text-secondary);
+      text-align: left;
+    }
+
+    /* ── Top HUD ─────────────────────────────────────────── */
+    #top-hud {
+      top: 0; left: 0; right: 0;
+      display: none;
+      padding: 14px 16px;
+      padding-top: max(14px, env(safe-area-inset-top));
+      flex-direction: row; align-items: flex-start; justify-content: space-between; gap: 8px;
+      pointer-events: none;
+    }
+
+    .hud-pill {
+      pointer-events: auto;
+      background: rgba(0,0,0,0.4);
+      border: 1px solid rgba(255,255,255,0.15);
+      border-radius: 99px; padding: 6px 14px;
+      font-size: 12px; font-weight: 500; color: #fff;
+      backdrop-filter: blur(12px); -webkit-backdrop-filter: blur(12px);
+      display: flex; align-items: center; gap: 6px;
+      white-space: nowrap; flex-shrink: 0;
+      box-shadow: 0 4px 12px rgba(0,0,0,0.15);
+    }
+
+    .hud-pill.good  { border-color: rgba(0,255,136,0.3); color: var(--accent-green); }
+    .hud-pill.warn  { border-color: rgba(255,170,0,0.3); color: #ffaa00; }
+    .hud-pill.error { border-color: rgba(255,71,87,0.3);  color: var(--accent-red); }
+
+    .hud-btn {
+      width: 36px; height: 36px; flex-shrink: 0;
+      background: rgba(7,11,23,0.72);
+      border: 1px solid rgba(255,255,255,0.1);
+      border-radius: 50%; color: var(--text-primary);
+      font-size: 15px; cursor: pointer;
+      display: flex; align-items: center; justify-content: center;
+      text-decoration: none;
+      backdrop-filter: blur(10px);
+      transition: all 0.2s;
+    }
+    .hud-btn:hover { background: rgba(0,212,255,0.15); border-color: rgba(0,212,255,0.4); }
+
+    /* ── Bottom Nearby List ──────────────────────────────── */
+    #bottom-panel {
+      bottom: 20px; left: 0; right: 0;
+      display: none;
+      background: transparent;
+      border: none;
+      padding: 0 16px;
+      padding-bottom: env(safe-area-inset-bottom);
+      pointer-events: none;
+    }
+
+    .panel-label { display: none; }
+
+    #nearby-list {
+      display: flex; gap: 10px; overflow-x: auto;
+      scrollbar-width: none; padding-bottom: 8px;
+      pointer-events: auto;
+    }
+    #nearby-list::-webkit-scrollbar { display: none; }
+
+    .nearby-chip {
+      display: flex; align-items: center; gap: 6px;
+      padding: 10px 16px;
+      background: rgba(0,0,0,0.4);
+      border: 1px solid rgba(255,255,255,0.15);
+      border-radius: 99px;
+      font-size: 13px; font-weight: 500; color: #fff;
+      backdrop-filter: blur(12px); -webkit-backdrop-filter: blur(12px);
+      white-space: nowrap; flex-shrink: 0;
+      cursor: pointer; transition: all 0.2s;
+      box-shadow: 0 4px 16px rgba(0,0,0,0.2);
+    }
+    .nearby-chip:hover {
+      background: rgba(0,212,255,0.2);
+      border-color: rgba(0,212,255,0.5);
+      color: #fff;
+    }
+    .nearby-chip.highlighted {
+      background: rgba(0,212,255,0.25);
+      border-color: var(--accent-cyan);
+      color: #fff;
+      box-shadow: 0 0 16px rgba(0,212,255,0.3);
+    }
+
+    /* ── Building Detail Card ────────────────────────────── */
+    #detail-card {
+      bottom: 20px; left: 16px; right: 16px;
+      display: none;
+      background: rgba(15, 20, 35, 0.75);
+      backdrop-filter: blur(24px); -webkit-backdrop-filter: blur(24px);
+      border: 1px solid rgba(255,255,255,0.1);
+      border-radius: var(--radius-lg);
+      padding: 20px;
+      animation: slideUp 0.3s cubic-bezier(0.16, 1, 0.3, 1);
+      box-shadow: 0 10px 40px rgba(0,0,0,0.5);
+    }
+
+    @keyframes slideUp {
+      from { transform: translateY(120%); opacity: 0; }
+      to   { transform: translateY(0);    opacity: 1; }
+    }
+
+    .detail-header {
+      display: flex; align-items: flex-start; gap: 14px; margin-bottom: 16px;
+    }
+
+    .detail-icon {
+      width: 52px; height: 52px; border-radius: 14px;
+      display: flex; align-items: center; justify-content: center;
+      font-size: 26px; flex-shrink: 0;
+    }
+
+    .detail-name { font-size: 19px; font-weight: 700; margin-bottom: 3px; }
+    .detail-desc { font-size: 13px; color: var(--text-secondary); line-height: 1.5; }
+    .detail-dist { font-size: 12px; color: var(--accent-cyan); margin-top: 4px; }
+
+    .detail-actions { display: flex; gap: 8px; margin-top: 4px; }
+
+    /* ── No buildings notice ─────────────────────────────── */
+    #no-buildings {
+      inset: 0;
+      background: rgba(7,11,23,0.75);
+      display: none;
+      flex-direction: column;
+      align-items: center; justify-content: center;
+      gap: 16px; padding: 40px; text-align: center;
+      backdrop-filter: blur(8px);
+    }
+
+    /* ── Compass calibration hint ────────────────────────── */
+    #cal-hint {
+      top: 70px; left: 50%; transform: translateX(-50%);
+      display: none;
+      background: rgba(255,170,0,0.12);
+      border: 1px solid rgba(255,170,0,0.35);
+      border-radius: 99px;
+      padding: 6px 16px;
+      font-size: 12px; color: #ffaa00;
+      white-space: nowrap;
+      backdrop-filter: blur(8px);
+    }
+  </style>
+</head>
+<body>
+
+<!-- Camera feed -->
+<video id="video" autoplay playsinline muted></video>
+
+<!-- AR Canvas -->
+<canvas id="canvas"></canvas>
+
+<!-- ══════════ SPLASH ══════════ -->
+<div id="splash" class="ui">
+  <div class="splash-orb">🗺️</div>
+  <div class="splash-title">Campus AR</div>
+  <p class="splash-desc">Trỏ camera ra xung quanh để xem tên các toà nhà trong khuôn viên trường hiển thị ngay trên màn hình.</p>
+
+  <div class="feature-list">
+    <div class="feature-item">📍 <span><strong style="color:var(--text-primary);">GPS</strong> — Xác định vị trí hiện tại</span></div>
+    <div class="feature-item">🧭 <span><strong style="color:var(--text-primary);">La bàn</strong> — Tính hướng đến từng toà</span></div>
+    <div class="feature-item">🏢 <span><strong style="color:var(--text-primary);">AR Label</strong> — Hiển thị tên nổi trên camera</span></div>
+  </div>
+
+  <button id="btn-launch" class="btn-primary" style="width:260px; margin-top:4px;">
+    🚀 Bật Camera AR
+  </button>
+  <div style="display:flex; gap:16px; margin-top:4px;">
+    <a href="buildings-admin.html" style="font-size:12px; color:var(--text-muted); text-decoration:none;">⚙️ Quản lý toà nhà</a>
+  </div>
+</div>
+
+<!-- ══════════ TOP HUD ══════════ -->
+<div id="top-hud" class="ui" style="display:flex; justify-content:space-between;">
+  <div id="gps-pill" class="hud-pill warn">📍 Đang lấy GPS...</div>
+
+  <div style="display:flex; gap:6px;">
+    <div id="compass-pill" class="hud-pill">🧭 —°</div>
+  </div>
+</div>
+
+<!-- ══════════ COMPASS CALIBRATION HINT ══════════ -->
+<div id="cal-hint" class="ui">🧭 Xoay điện thoại vài vòng để căn chỉnh la bàn</div>
+
+<!-- ══════════ BOTTOM NEARBY LIST ══════════ -->
+<div id="bottom-panel" class="ui">
+  <div class="panel-label">🏢 Toà nhà gần đây</div>
+  <div id="nearby-list"></div>
+</div>
+
+<!-- ══════════ BUILDING DETAIL CARD ══════════ -->
+<div id="detail-card" class="ui">
+  <div class="detail-header">
+    <div class="detail-icon" id="detail-icon"></div>
+    <div>
+      <div class="detail-name" id="detail-name"></div>
+      <div class="detail-desc" id="detail-desc"></div>
+      <div class="detail-dist" id="detail-dist"></div>
+    </div>
+  </div>
+  <div class="detail-actions" style="justify-content: flex-end;">
+    <button class="btn-ghost" style="margin-top:0; width:auto; padding:0 16px;" id="btn-close-detail">✕ Đóng</button>
+  </div>
+
+  <!-- POI list (điểm đến cụ thể trong toà nhà) -->
+  <div id="detail-poi" style="display:none; margin-top:14px;">
+    <div style="font-size:10px; font-weight:700; text-transform:uppercase; letter-spacing:1px;
+                color:var(--text-muted); margin-bottom:8px;">📍 Điểm đến trong toà nhà</div>
+    <div id="poi-chips" style="display:flex; flex-wrap:wrap; gap:6px;"></div>
+  </div>
+</div>
+
+<!-- ══════════ NO BUILDINGS NOTICE ══════════ -->
+<div id="no-buildings" class="ui">
+  <div style="font-size:48px;">🏗️</div>
+  <h2 style="font-size:18px; font-weight:700;">Chưa có toà nhà nào</h2>
+  <p style="font-size:13px; color:var(--text-secondary); line-height:1.7; max-width:260px;">
+    Hãy thêm toà nhà qua trang Admin để chúng hiển thị trên AR.
+  </p>
+  <a href="buildings-admin.html" class="btn-primary" style="width:220px; text-decoration:none; text-align:center; padding:11px;">
+    ➕ Thêm toà nhà ngay
+  </a>
+  <button id="btn-dismiss-notice" class="btn-ghost" style="width:220px;">Tiếp tục (không có label)</button>
+</div>
+
+<script type="module" src="js/campus-ar.js"></script>
+</body>
+</html>
