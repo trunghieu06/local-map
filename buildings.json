@@ -7,7 +7,11 @@
       "lat": 10.8738204,
       "lng": 106.7971408,
       "icon": "🏫",
-      "color": "#00d4ff"
+      "color": "#00d4ff",
+      "entryNodes": [
+        "node_ucqu3w",
+        "node_3yjho6"
+      ]
     },
     {
       "id": "bldg_mq3aurv2",
@@ -16,7 +20,10 @@
       "lat": 10.8742024,
       "lng": 106.797232,
       "icon": "🏫",
-      "color": "#00d4ff"
+      "color": "#00d4ff",
+      "entryNodes": [
+        "node_eko9un"
+      ]
     },
     {
       "id": "bldg_mq3av1by",
@@ -25,7 +32,13 @@
       "lat": 10.8746185,
       "lng": 106.7974466,
       "icon": "🏫",
-      "color": "#00d4ff"
+      "color": "#00d4ff",
+      "entryNodes": [
+        "node_4pxyg2",
+        "node_n2lgec",
+        "node_0vh5ux",
+        "node_3ywaks"
+      ]
     },
     {
       "id": "bldg_mq3av7q4",
@@ -34,7 +47,12 @@
       "lat": 10.8749689,
       "lng": 106.7974547,
       "icon": "🏫",
-      "color": "#00d4ff"
+      "color": "#00d4ff",
+      "entryNodes": [
+        "node_5k8xl8",
+        "node_idrqfb",
+        "node_3utltr"
+      ]
     },
     {
       "id": "bldg_mq3avdqo",
@@ -43,7 +61,13 @@
       "lat": 10.8753324,
       "lng": 106.7978221,
       "icon": "🏫",
-      "color": "#00d4ff"
+      "color": "#00d4ff",
+      "entryNodes": [
+        "node_0zbtu3",
+        "node_qcubhw",
+        "node_m9yauq",
+        "node_iz204z"
+      ]
     },
     {
       "id": "bldg_mq3avw3x",
@@ -52,7 +76,10 @@
       "lat": 10.8759435,
       "lng": 106.7967063,
       "icon": "🏋️",
-      "color": "#00d4ff"
+      "color": "#00d4ff",
+      "entryNodes": [
+        "node_rqdhok"
+      ]
     },
     {
       "id": "bldg_mq3aw75h",
@@ -61,16 +88,25 @@
       "lat": 10.8763676,
       "lng": 106.797767,
       "icon": "🏫",
-      "color": "#00d4ff"
+      "color": "#00d4ff",
+      "entryNodes": [
+        "node_sx9eym",
+        "node_kbz1n1"
+      ]
     },
     {
       "id": "bldg_mq3awbov",
       "name": "Toà G",
       "description": "",
-      "lat": 10.8768681,
-      "lng": 106.7977644,
+      "lat": 10.8770471,
+      "lng": 106.797798,
       "icon": "🏫",
-      "color": "#00d4ff"
+      "color": "#00d4ff",
+      "entryNodes": [
+        "node_4e9cpn",
+        "node_5cbp6w",
+        "node_1xuklq"
+      ]
     },
     {
       "id": "bldg_mq3aycsx",
@@ -79,7 +115,10 @@
       "lat": 10.8774134,
       "lng": 106.7966834,
       "icon": "🔬",
-      "color": "#00d4ff"
+      "color": "#00d4ff",
+      "entryNodes": [
+        "node_kanlli"
+      ]
     },
     {
       "id": "bldg_mq3ayl0l",
@@ -88,7 +127,10 @@
       "lat": 10.8780113,
       "lng": 106.7967317,
       "icon": "🔬",
-      "color": "#00d4ff"
+      "color": "#00d4ff",
+      "entryNodes": [
+        "node_9eelu1"
+      ]
     },
     {
       "id": "bldg_mq3ayxi6",
@@ -97,7 +139,11 @@
       "lat": 10.8758091,
       "lng": 106.7991793,
       "icon": "🏫",
-      "color": "#00d4ff"
+      "color": "#00d4ff",
+      "entryNodes": [
+        "node_uw4h28",
+        "node_r8xi1v"
+      ]
     },
     {
       "id": "bldg_mq3azi6x",
@@ -106,7 +152,10 @@
       "lat": 10.8780401,
       "lng": 106.7992625,
       "icon": "🏫",
-      "color": "#00d4ff"
+      "color": "#00d4ff",
+      "entryNodes": [
+        "node_b5ylom"
+      ]
     },
     {
       "id": "bldg_mq3b0201",
@@ -115,7 +164,10 @@
       "lat": 10.8762095,
       "lng": 106.7968377,
       "icon": "🅿️",
-      "color": "#00d4ff"
+      "color": "#00d4ff",
+      "entryNodes": [
+        "node_r21h2c"
+      ]
     },
     {
       "id": "bldg_mq3b0k2z",
@@ -124,7 +176,10 @@
       "lat": 10.8750189,
       "lng": 106.7986026,
       "icon": "🅿️",
-      "color": "#00d4ff"
+      "color": "#00d4ff",
+      "entryNodes": [
+        "node_ty6grm"
+      ]
     },
     {
       "id": "bldg_mq3b1ehg",
@@ -133,7 +188,52 @@
       "lat": 10.8759316,
       "lng": 106.7977846,
       "icon": "🏆",
-      "color": "#00d4ff"
+      "color": "#00d4ff",
+      "entryNodes": [
+        "node_4ebkim",
+        "node_1m6uvg",
+        "node_xi5qix",
+        "node_meb18f"
+      ]
+    },
+    {
+      "id": "bldg_mq8y9fpm",
+      "name": "Căn tin",
+      "description": "",
+      "lat": 10.8748293,
+      "lng": 106.796705,
+      "icon": "🍽️",
+      "color": "#00d4ff",
+      "poi": [],
+      "entryNodes": [
+        "node_440rnr"
+      ]
+    },
+    {
+      "id": "bldg_mq8ycawx",
+      "name": "Quầy giáo trình",
+      "description": "",
+      "lat": 10.8748477,
+      "lng": 106.7974627,
+      "icon": "📚",
+      "color": "#00d4ff",
+      "poi": [],
+      "entryNodes": [
+        "node_idrqfb"
+      ]
+    },
+    {
+      "id": "bldg_mq8yelnm",
+      "name": "Thư viện",
+      "description": "",
+      "lat": 10.8745961,
+      "lng": 106.7972039,
+      "icon": "📚",
+      "color": "#00d4ff",
+      "poi": [],
+      "entryNodes": [
+        "node_8mnqqd"
+      ]
     }
   ]
 }

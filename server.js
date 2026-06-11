@@ -89,6 +89,7 @@ app.post('/api/buildings', (req, res) => {
 });
 
 const https = require('https');
+const os = require('os');
 
 // Read SSL certificates
 let sslOptions = {};
@@ -101,14 +102,27 @@ try {
   console.warn('⚠️  Không tìm thấy SSL certificates, server sẽ báo lỗi nếu trình duyệt yêu cầu bảo mật.');
 }
 
+// Get local IP Address
+let localIP = 'localhost';
+const interfaces = os.networkInterfaces();
+for (let name of Object.keys(interfaces)) {
+  for (let iface of interfaces[name]) {
+    if (iface.family === 'IPv4' && !iface.internal) {
+      localIP = iface.address;
+    }
+  }
+}
+
 // ── Start Server ────────────────────────────────────────
 const server = https.createServer(sslOptions, app);
 
 server.listen(PORT, '0.0.0.0', () => {
-  console.log('\n╔══════════════════════════════════════════╗');
-  console.log('║  🏢  VPS Outdoor Navigation System      ║');
-  console.log('╠══════════════════════════════════════════╣');
-  console.log(`║  🌐  https://localhost:${PORT}              ║`);
-  console.log(`║  ⚙️   https://localhost:${PORT}/buildings-admin.html ║`);
-  console.log('╚══════════════════════════════════════════╝\n');
+  console.log('\n╔══════════════════════════════════════════════════════╗');
+  console.log('║  🏢  VPS Outdoor Navigation System                  ║');
+  console.log('╠══════════════════════════════════════════════════════╣');
+  console.log(`║  🌐  Local:    https://localhost:${PORT}                  ║`);
+  console.log(`║  📱  Network:  https://${localIP}:${PORT}${' '.repeat(Math.max(0, 24 - localIP.length - PORT.toString().length))}║`);
+  console.log('╠══════════════════════════════════════════════════════╣');
+  console.log(`║  ⚙️   Admin:    https://${localIP}:${PORT}/admin.html${' '.repeat(Math.max(0, 14 - localIP.length - PORT.toString().length))}║`);
+  console.log('╚══════════════════════════════════════════════════════╝\n');
 });

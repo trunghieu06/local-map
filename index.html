@@ -137,7 +137,23 @@
       pointer-events: none;
     }
 
-    .panel-label { display: none; }
+    .panel-header {
+      pointer-events: auto;
+      margin-bottom: 12px;
+      padding-left: 4px;
+    }
+    .panel-title {
+      font-size: 18px;
+      font-weight: 700;
+      color: #fff;
+      text-shadow: 0 2px 10px rgba(0,0,0,0.8);
+      margin-bottom: 2px;
+    }
+    .panel-subtitle {
+      font-size: 13px;
+      color: rgba(255,255,255,0.75);
+      text-shadow: 0 1px 4px rgba(0,0,0,0.8);
+    }
 
     #nearby-list {
       display: flex; gap: 10px; overflow-x: auto;
@@ -252,8 +268,8 @@
   <button id="btn-launch" class="btn-primary" style="width:260px; margin-top:4px;">
     🚀 Bật Camera AR
   </button>
-  <div style="display:flex; gap:16px; margin-top:4px;">
-    <a href="buildings-admin.html" style="font-size:12px; color:var(--text-muted); text-decoration:none;">⚙️ Quản lý toà nhà</a>
+  <div style="display:flex; justify-content:center; margin-top:4px;">
+    <a href="admin.html" style="font-size:12px; color:var(--text-muted); text-decoration:none;">⚙️ Admin Studio (Bản đồ)</a>
   </div>
 </div>
 
@@ -271,7 +287,10 @@
 
 <!-- ══════════ BOTTOM NEARBY LIST ══════════ -->
 <div id="bottom-panel" class="ui">
-  <div class="panel-label">🏢 Toà nhà gần đây</div>
+  <div class="panel-header">
+    <div class="panel-title">Bạn muốn đến đâu? 📍</div>
+    <div class="panel-subtitle">Chọn một toà nhà bên dưới để bắt đầu chỉ đường</div>
+  </div>
   <div id="nearby-list"></div>
 </div>
 
@@ -304,7 +323,7 @@
   <p style="font-size:13px; color:var(--text-secondary); line-height:1.7; max-width:260px;">
     Hãy thêm toà nhà qua trang Admin để chúng hiển thị trên AR.
   </p>
-  <a href="buildings-admin.html" class="btn-primary" style="width:220px; text-decoration:none; text-align:center; padding:11px;">
+  <a href="admin.html" class="btn-primary" style="width:220px; text-decoration:none; text-align:center; padding:11px;">
     ➕ Thêm toà nhà ngay
   </a>
   <button id="btn-dismiss-notice" class="btn-ghost" style="width:220px;">Tiếp tục (không có label)</button>

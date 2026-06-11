@@ -3,271 +3,730 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>VPS Admin — Quản Lý Đồ Thị Điều Hướng</title>
-  <meta name="description" content="Admin panel để quản lý nodes và edges của hệ thống VPS">
+  <title>VPS — Admin Studio (Bản đồ)</title>
   <link rel="stylesheet" href="css/style.css">
-
-  <script type="importmap">
-  {
-    "imports": {
-      "three":          "https://unpkg.com/three@0.160.0/build/three.module.js",
-      "three/addons/":  "https://unpkg.com/three@0.160.0/examples/jsm/"
-    }
-  }
-  </script>
-
+  <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
+  <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
   <style>
-    /* Admin-specific overrides */
-    body { overflow: hidden; }
+    body { overflow: hidden; margin: 0; padding: 0; background: #0f1423; color: #fff; font-family: sans-serif; }
     #app { display:flex; flex-direction:column; height:100vh; }
 
-    .save-bar {
-      position: fixed;
-      bottom: 0; left: 0; right: 0;
-      background: var(--bg-secondary);
-      border-top: 1px solid var(--border);
-      padding: 12px 20px;
-      display: flex;
-      align-items: center;
-      justify-content: space-between;
-      gap: 12px;
-      z-index: 500;
-    }
-    .save-bar-info { font-size: 12px; color: var(--text-muted); }
-    .save-actions  { display:flex; gap:8px; }
+    /* ── Layout ── */
+    .body-wrap { flex:1; display:flex; overflow:hidden; }
 
-    .btn-save {
-      padding: 9px 22px;
-      background: linear-gradient(135deg, var(--accent-green), #009955);
-      border: none; border-radius: var(--radius-sm);
-      color: #000; font-family: inherit; font-size: 13px; font-weight: 700;
-      cursor: pointer; transition: var(--transition);
-      box-shadow: 0 4px 16px rgba(0,255,136,0.25);
-    }
-    .btn-save:hover { transform:translateY(-1px); box-shadow:0 6px 24px rgba(0,255,136,0.35); }
+    /* ── Sidebar ── */
+    .sidebar { width: 420px; flex-shrink: 0; background: var(--bg-secondary); border-right: 1px solid var(--border); display: flex; flex-direction: column; overflow: hidden; }
+    .sidebar-scroll { flex:1; overflow-y: auto; scrollbar-width: thin; scrollbar-color: var(--border) transparent; padding: 15px; }
+    .sidebar-scroll::-webkit-scrollbar { width:4px; }
+    .sidebar-scroll::-webkit-scrollbar-thumb { background: var(--border); border-radius:99px; }
 
-    .unsaved-dot {
-      display: inline-block; width: 7px; height: 7px;
-      background: var(--accent-amber); border-radius: 50%;
-      margin-right: 6px; animation: pulse-scale 1.5s infinite;
-    }
-
-    .tab-bar {
-      display: flex; gap: 0;
-      border-bottom: 1px solid var(--border);
-      background: var(--bg-secondary);
-      flex-shrink: 0;
-    }
-    .tab-btn {
-      padding: 11px 20px;
-      font-size: 12px; font-weight: 600; font-family: inherit;
-      color: var(--text-muted);
-      background: transparent; border: none; border-bottom: 2px solid transparent;
-      cursor: pointer; transition: var(--transition);
-      display: flex; align-items: center; gap: 6px;
-    }
+    /* ── Tabs ── */
+    .tab-bar { display: flex; border-bottom: 1px solid var(--border); background: var(--bg-secondary); flex-shrink: 0; }
+    .tab-btn { flex: 1; padding: 12px 0; font-size: 13px; font-weight: 600; color: var(--text-muted); background: transparent; border: none; border-bottom: 2px solid transparent; cursor: pointer; transition: all 0.2s; text-align: center; }
     .tab-btn:hover { color: var(--text-primary); }
-    .tab-btn.active {
-      color: var(--accent-cyan);
-      border-bottom-color: var(--accent-cyan);
-    }
+    .tab-btn.active { color: var(--accent-cyan); border-bottom-color: var(--accent-cyan); }
+    .tab-content { display: none; }
+    .tab-content.active { display: block; }
 
-    .tab-panel { display:none; }
-    .tab-panel.active { display:block; }
+    /* ── Map ── */
+    #map { flex:1; background: #000; position: relative; }
+    .map-hint { position: absolute; top: 12px; left: 50%; transform: translateX(-50%); z-index: 999; background: rgba(0,0,0,0.7); border: 1px solid var(--border); border-radius: 99px; padding: 6px 16px; font-size: 12px; color: var(--text-secondary); backdrop-filter: blur(8px); white-space: nowrap; pointer-events: none; }
 
-    .coords-hint {
-      font-size: 11px; color: var(--text-muted);
-      margin-top: 4px; display: block;
-    }
+    /* ── Forms ── */
+    .form-card { background: rgba(255,255,255,0.03); border: 1px solid var(--border); border-radius: var(--radius-sm); padding: 14px; margin-bottom: 14px; }
+    .color-picker-row, .icon-picker-row { display: flex; gap: 6px; flex-wrap: wrap; margin-top: 4px; }
+    .color-opt { width: 28px; height: 28px; border-radius: 50%; cursor: pointer; border: 2px solid transparent; transition: transform 0.15s; }
+    .color-opt.selected { border-color: white; transform: scale(1.15); }
+    .icon-opt { width: 36px; height: 36px; background: rgba(255,255,255,0.05); border: 1px solid var(--border); border-radius: var(--radius-sm); font-size: 18px; cursor: pointer; display: flex; align-items: center; justify-content: center; }
+    .icon-opt.selected { background: rgba(0,212,255,0.15); border-color: var(--accent-cyan); }
+    .coord-badge { font-family: monospace; font-size: 11px; color: var(--accent-cyan); background: rgba(0,212,255,0.08); border: 1px solid rgba(0,212,255,0.2); border-radius: var(--radius-sm); padding: 6px 10px; margin-top: 6px; display: flex; align-items: center; gap: 6px; }
 
-    .weight-auto {
-      font-size: 10px; color: var(--accent-cyan);
-      margin-top: 3px; display: block;
-    }
-    
-    .editing-row td { background: rgba(0,212,255,0.06) !important; }
-    
-    .admin-body {
-      flex:1; display:flex; overflow:hidden;
-      padding-bottom: 58px; /* save bar height */
-    }
+    /* ── Lists ── */
+    .bldg-item { display: flex; align-items: center; gap: 10px; padding: 10px 12px; background: rgba(255,255,255,0.03); border: 1px solid var(--border); border-radius: var(--radius-sm); margin-bottom: 6px; }
+    .bldg-icon-badge { width: 38px; height: 38px; border-radius: 10px; display: flex; align-items: center; justify-content: center; font-size: 20px; flex-shrink: 0; }
+    .bldg-info { flex:1; min-width:0; }
+    .bldg-name { font-size: 13px; font-weight: 600; }
+    .bldg-meta { font-size: 11px; color: var(--text-muted); margin-top: 2px; }
+
+    /* ── Save Bar ── */
+    .save-bar { background: var(--bg-secondary); border-top: 1px solid var(--border); padding: 12px 20px; display: flex; align-items: center; justify-content: space-between; }
+    .btn-save-all { padding: 8px 22px; background: linear-gradient(135deg, var(--accent-green), #009955); border: none; border-radius: var(--radius-sm); color: #000; font-weight: 700; cursor: pointer; }
+
+    /* ── Map Elements ── */
+    .node-marker { background: #00d4ff; border: 2px solid #fff; border-radius: 50%; box-shadow: 0 0 10px rgba(0,212,255,0.8); cursor: pointer; transition: all 0.2s; }
+    .node-marker.selected { background: #ffaa00 !important; border-color: #fff !important; box-shadow: 0 0 15px rgba(255,170,0,1) !important; }
+    .node-marker.highlight-red { background: #ff4757 !important; border-color: #fff !important; z-index: 9999 !important; box-shadow: 0 0 15px rgba(255,71,87,0.8) !important; opacity: 1 !important; }
+    .node-marker.dimmed { opacity: 0.4; cursor: crosshair; }
+    .node-marker.dimmed:hover { background: #ff4757 !important; border-color: #fff !important; opacity: 1 !important; box-shadow: 0 0 15px rgba(255,71,87,1) !important; z-index: 9999 !important; }
+    .edge-polyline.dimmed { opacity: 0.2; pointer-events: none; }
+
+    /* ── Custom Dropdown ── */
+    .custom-dropdown { position: relative; width: 100%; user-select: none; }
+    .dropdown-header { padding: 10px 12px; background: rgba(255,255,255,0.05); border: 1px solid var(--border); border-radius: var(--radius-sm); cursor: pointer; color: #fff; font-size: 13px; display:flex; justify-content:space-between; align-items:center;}
+    .dropdown-list { position: absolute; top: 100%; left: 0; right: 0; background: #1a1f35; border: 1px solid var(--border); border-radius: var(--radius-sm); max-height: 200px; overflow-y: auto; z-index: 1000; margin-top: 4px; box-shadow: 0 4px 12px rgba(0,0,0,0.5); display:none; }
+    .dropdown-item { padding: 10px 12px; font-size: 13px; cursor: pointer; color: var(--text-secondary); border-bottom: 1px solid rgba(255,255,255,0.05); }
+    .dropdown-item:hover { background: rgba(255,71,87,0.15); color: #fff; }
   </style>
 </head>
 <body>
 <div id="app">
-
   <!-- Header -->
   <header class="header">
     <div class="header-left">
       <div class="header-logo">⚙️</div>
       <div>
-        <h1 class="header-title">VPS Admin</h1>
-        <span class="header-subtitle">Quản Lý Đồ Thị Điều Hướng</span>
+        <h1 class="header-title">Admin Studio</h1>
+        <span class="header-subtitle">Quản lý Toà nhà và Bản đồ dẫn đường</span>
       </div>
     </div>
     <nav class="header-nav">
-      <a href="qr-print.html" target="_blank" class="btn-secondary">🖨️ In QR</a>
-      <a href="ar.html" class="btn-secondary" style="color:var(--accent-cyan); border-color:rgba(0,212,255,0.3);">📷 AR</a>
-      <a href="index.html" class="btn-secondary">🗺️ Về trang chỉ đường</a>
+      <a href="index.html" class="btn-secondary" style="color:var(--accent-cyan); border-color:rgba(0,212,255,0.3);">🗺️ Về Campus AR</a>
     </nav>
   </header>
 
-  <!-- Body -->
-  <div class="admin-body">
-
-    <!-- LEFT: Forms + Tables -->
-    <div class="admin-sidebar" style="width:420px;">
-
-      <!-- Tab bar -->
+  <div class="body-wrap">
+    <!-- Sidebar -->
+    <div class="sidebar">
       <div class="tab-bar">
-        <button class="tab-btn active" data-tab="nodes">
-          🔵 Nodes <span class="count-badge" id="node-count">0</span>
-        </button>
-        <button class="tab-btn" data-tab="edges">
-          🔗 Edges <span class="count-badge" id="edge-count">0</span>
-        </button>
+        <button class="tab-btn active" onclick="switchTab('buildings')">🏢 Toà Nhà</button>
+        <button class="tab-btn" onclick="switchTab('routes')">🗺️ Đường Đi</button>
       </div>
 
-      <!-- NODES TAB -->
-      <div class="tab-panel active" id="tab-nodes">
-        <div class="panel-section">
-          <h2 class="section-title" id="node-form-title">➕ &nbsp;Thêm Node Mới</h2>
-
+      <div class="sidebar-scroll">
+        
+        <!-- =================== BUILDINGS TAB =================== -->
+        <div id="tab-buildings" class="tab-content active">
+          <h2 class="section-title" id="form-title">➕ &nbsp;Thêm Toà Nhà</h2>
           <div class="form-card">
+            <div class="form-group"><label class="form-label">Tên toà nhà</label><input id="f-name" class="form-input" placeholder="vd: Toà A — Khoa CNTT" type="text"></div>
+            <div class="form-group"><label class="form-label">Mô tả ngắn</label><input id="f-desc" class="form-input" placeholder="vd: Giảng đường chính" type="text"></div>
+            <div class="form-group"><label class="form-label">Biểu tượng</label><div class="icon-picker-row" id="icon-picker"></div></div>
+            <div class="form-group"><label class="form-label">Màu nhãn AR</label><div class="color-picker-row" id="color-picker"></div></div>
             <div class="form-group">
-              <label class="form-label">ID (key định danh)</label>
-              <input id="node-id" class="form-input" placeholder="vd: phong_giao_vien" type="text">
+              <label class="form-label">Toạ độ GPS</label>
+              <div style="display:flex; gap:8px;">
+                <input id="f-lat" class="form-input" placeholder="Latitude" type="number" step="0.000001" style="flex:1;">
+                <input id="f-lng" class="form-input" placeholder="Longitude" type="number" step="0.000001" style="flex:1;">
+              </div>
+              <div class="coord-badge" id="coord-badge" style="display:none;">📍 <span id="coord-text"></span></div>
+              <span style="font-size:11px; color:var(--text-muted); margin-top:4px; display:block;">💡 Click lên bản đồ để chọn vị trí</span>
             </div>
             <div class="form-group">
-              <label class="form-label">Tên hiển thị (tiếng Việt)</label>
-              <input id="node-label" class="form-input" placeholder="vd: Phòng giáo viên" type="text">
+              <label class="form-label">Điểm rẽ dẫn vào (tuỳ chọn)</label>
+              <div id="entry-nodes-chips" style="display:flex; flex-wrap:wrap; gap:6px; margin-bottom:8px;"></div>
+              <div class="custom-dropdown" id="entry-node-dropdown">
+                <div class="dropdown-header" onclick="toggleDropdown()">
+                  <span id="entry-dropdown-text">➕ Chọn thêm từ danh sách...</span>
+                  <span>▼</span>
+                </div>
+                <div class="dropdown-list" id="entry-node-list" onmouseleave="restoreHighlight()">
+                  <!-- Items injected via JS -->
+                </div>
+              </div>
+              <span style="font-size:11px; color:var(--text-muted); margin-top:4px; display:block;">💡 Mẹo: Nhấp trực tiếp vào một ngã rẽ trên bản đồ để Thêm/Xoá điểm đó.</span>
             </div>
-            <div class="form-row">
-              <div class="form-group" style="margin-bottom:0">
-                <label class="form-label">Tầng</label>
-                <input id="node-floor" class="form-input" placeholder="1 / 1.5 / 2" type="number" step="0.5">
-              </div>
-              <div class="form-group" style="margin-bottom:0">
-                <label class="form-label">X</label>
-                <input id="node-x" class="form-input" placeholder="0.00" type="number" step="0.01">
-              </div>
-            </div>
-            <div class="form-row" style="margin-top:8px;">
-              <div class="form-group" style="margin-bottom:0">
-                <label class="form-label">Y</label>
-                <input id="node-y" class="form-input" placeholder="0.00" type="number" step="0.01">
-              </div>
-              <div class="form-group" style="margin-bottom:0">
-                <label class="form-label">Z</label>
-                <input id="node-z" class="form-input" placeholder="0.00" type="number" step="0.01">
-              </div>
-            </div>
-            <span class="coords-hint">Toạ độ từ point cloud (đơn vị: mét)</span>
-            <div style="display:flex; gap:8px; margin-top:14px;">
-              <button id="btn-add-node" class="btn-primary" style="flex:1;">
-                ➕ Thêm node
-              </button>
-              <button id="btn-cancel-node" class="btn-ghost" style="display:none; margin-top:0; flex:0 0 auto; width:auto; padding:0 16px;">
-                Huỷ
-              </button>
+            <div style="display:flex; gap:8px; margin-top:4px;">
+              <button id="btn-add-bldg" class="btn-primary" style="flex:1;" onclick="addOrSaveBldg()">➕ Thêm toà nhà</button>
+              <button id="btn-cancel-edit" class="btn-ghost" style="display:none; padding:0 14px;" onclick="clearForm()">Huỷ</button>
             </div>
           </div>
+          
+          <h2 class="section-title">🏢 &nbsp;Danh Sách <span class="count-badge" id="bldg-count">0</span></h2>
+          <div id="bldg-list"></div>
+        </div>
 
-          <h2 class="section-title">
-            Danh Sách Nodes <span class="count-badge" id="node-count2">0</span>
-          </h2>
-          <div class="data-table-wrap">
-            <table class="data-table" id="node-table">
-              <thead>
-                <tr>
-                  <th>ID</th>
-                  <th>Tên</th>
-                  <th>Tầng</th>
-                  <th>X / Y / Z</th>
-                  <th></th>
-                </tr>
-              </thead>
-              <tbody id="node-tbody"></tbody>
-            </table>
+        <!-- =================== ROUTES TAB =================== -->
+        <div id="tab-routes" class="tab-content">
+          <div style="font-size:13px; color:var(--text-secondary); margin-bottom:15px; line-height: 1.6;">
+            <strong>Hướng dẫn thao tác:</strong><br>
+            - 🖱️ <strong>Click đúp:</strong> Tạo điểm ngã rẽ mới.<br>
+            - 🔗 <strong>Click vào 2 điểm:</strong> Nối đường giữa chúng.<br>
+            - 🗑️ <strong>Chuột phải:</strong> Xoá điểm hoặc xoá đường.
+          </div>
+          <button id="btn-delete-node" class="btn-primary" style="background:#ffaa00; display:none; width:100%; margin-bottom:10px;" onclick="deleteSelectedNode()">🗑️ Xoá điểm đang chọn</button>
+          <button class="btn-primary" style="background:#ff4757; width:100%; margin-bottom:10px;" onclick="clearGraph()">💥 Xoá tất cả đường đi</button>
+          
+          <h2 class="section-title" style="margin-top:20px;">Thông tin mạng lưới</h2>
+          <div class="form-card" style="font-size: 13px; color:var(--text-muted);">
+            <div>Tổng số điểm rẽ: <strong id="stat-nodes" style="color:#fff">0</strong></div>
+            <div style="margin-top:4px;">Tổng số đường nối: <strong id="stat-edges" style="color:#fff">0</strong></div>
           </div>
         </div>
+
       </div>
 
-      <!-- EDGES TAB -->
-      <div class="tab-panel" id="tab-edges">
-        <div class="panel-section">
-          <h2 class="section-title" id="edge-form-title">➕ &nbsp;Thêm Edge Mới</h2>
-
-          <div class="form-card">
-            <div class="form-row-2">
-              <div class="form-group">
-                <label class="form-label">Từ node</label>
-                <select id="edge-from" class="form-select">
-                  <option value="">— Chọn —</option>
-                </select>
-              </div>
-              <div class="form-group">
-                <label class="form-label">Đến node</label>
-                <select id="edge-to" class="form-select">
-                  <option value="">— Chọn —</option>
-                </select>
-              </div>
-            </div>
-            <div class="form-group">
-              <label class="form-label">Khoảng cách (m)</label>
-              <input id="edge-weight" class="form-input" placeholder="Tự tính nếu để trống" type="number" step="0.01" min="0">
-              <span class="weight-auto">✨ Có thể để trống — sẽ tự tính từ toạ độ 3D</span>
-            </div>
-            <div style="display:flex; gap:8px; margin-top:6px;">
-              <button id="btn-add-edge" class="btn-primary" style="flex:1;">
-                ➕ Thêm edge
-              </button>
-              <button id="btn-cancel-edge" class="btn-ghost" style="display:none; margin-top:0; flex:0 0 auto; width:auto; padding:0 16px;">
-                Huỷ
-              </button>
-            </div>
-          </div>
-
-          <h2 class="section-title">
-            Danh Sách Edges <span class="count-badge" id="edge-count2">0</span>
-          </h2>
-          <div class="data-table-wrap">
-            <table class="data-table" id="edge-table">
-              <thead>
-                <tr>
-                  <th>Từ</th>
-                  <th>Đến</th>
-                  <th>Khoảng cách</th>
-                  <th></th>
-                </tr>
-              </thead>
-              <tbody id="edge-tbody"></tbody>
-            </table>
-          </div>
-        </div>
+      <!-- Save Bar -->
+      <div class="save-bar">
+        <span id="save-status" style="font-size:12px; color:var(--text-muted);">Đã tải dữ liệu</span>
+        <button class="btn-save-all" onclick="saveAll()">💾 Lưu Tất Cả</button>
       </div>
-
-    </div><!-- /admin-sidebar -->
-
-    <!-- RIGHT: 3D Preview -->
-    <div class="preview-container">
-      <div class="preview-label">👁️ Xem trước đồ thị (không có point cloud)</div>
-      <canvas id="canvas-admin"></canvas>
     </div>
 
-  </div><!-- /admin-body -->
-
-  <!-- Save Bar -->
-  <div class="save-bar">
-    <span class="save-bar-info" id="save-status">Chưa có thay đổi</span>
-    <div class="save-actions">
-      <button id="btn-reload" class="btn-secondary">🔄 Tải lại</button>
-      <button id="btn-save" class="btn-save">💾 Lưu thay đổi</button>
+    <!-- Map -->
+    <div id="map">
+      <div class="map-hint" id="map-hint">🖱️ Đang ở chế độ Toà Nhà</div>
     </div>
   </div>
+</div>
 
-</div><!-- /app -->
+<script>
+// ══════════════════════════════════════════════════════════════
+//  STATE & CONFIG
+// ══════════════════════════════════════════════════════════════
+let activeTab = 'buildings'; // 'buildings' or 'routes'
 
-<script type="module" src="js/admin.js"></script>
+// Buildings State
+const ICONS   = ['🏢','🏫','🏛️','🏗️','🔬','📚','🎓','🏥','⚗️','🖥️','🏆','🎭','🏋️','🍽️','🅿️'];
+const COLORS  = ['#00d4ff','#00ff88','#a855f7','#ff4757','#ffd700','#ff7f50','#4fc3f7','#81c784','#f06292','#ffb74d'];
+let buildings = [];
+let editingId = null;
+let selectedIcon = '🏢';
+let selectedColor = '#00d4ff';
+let pickedLat = null, pickedLng = null;
+let pendingBldgMarker = null;
+let bldgMarkersMap = {};
+let currentEntryNodes = [];
+
+// Routes State
+let graphData = { nodes: {}, edges: [] };
+let selectedNodeId = null;
+let routeNodeMarkersMap = {};
+let routeEdgePolylines = [];
+
+// Dropdown close listener
+document.addEventListener('click', (e) => {
+  if (!e.target.closest('.custom-dropdown')) {
+    document.getElementById('entry-node-list').style.display = 'none';
+    restoreHighlight();
+  }
+});
+
+// Leaflet Map
+let map;
+
+// ══════════════════════════════════════════════════════════════
+//  INITIALIZATION
+// ══════════════════════════════════════════════════════════════
+function init() {
+  renderPickers();
+  setupMap();
+  loadAllData();
+}
+
+function switchTab(tab) {
+  activeTab = tab;
+  document.querySelectorAll('.tab-btn').forEach(btn => btn.classList.remove('active'));
+  document.querySelectorAll('.tab-content').forEach(content => content.classList.remove('active'));
+  
+  document.querySelector(`.tab-btn[onclick="switchTab('${tab}')"]`).classList.add('active');
+  document.getElementById(`tab-${tab}`).classList.add('active');
+  
+  const hint = document.getElementById('map-hint');
+  if(tab === 'buildings') {
+    hint.textContent = '🖱️ Click 1 lần: Đặt vị trí toà nhà';
+    if(selectedNodeId) handleNodeClick(selectedNodeId); // deselect
+  } else {
+    hint.textContent = '🖱️ Click đúp: Tạo điểm | Click 1 lần: Nối đường';
+    if(pendingBldgMarker) { map.removeLayer(pendingBldgMarker); pendingBldgMarker = null; }
+  }
+  
+  updateMapInteractivity();
+}
+
+// ══════════════════════════════════════════════════════════════
+//  MAP LOGIC
+// ══════════════════════════════════════════════════════════════
+function setupMap() {
+  map = L.map('map', { doubleClickZoom: false }).setView([10.875, 106.797], 17);
+  
+  // Use Google Satellite
+  L.tileLayer('https://{s}.google.com/vt/lyrs=s,h&x={x}&y={y}&z={z}', {
+    maxZoom: 22,
+    subdomains: ['mt0', 'mt1', 'mt2', 'mt3']
+  }).addTo(map);
+
+  map.on('click', (e) => {
+    if (activeTab === 'buildings') {
+      pickedLat = parseFloat(e.latlng.lat.toFixed(7));
+      pickedLng = parseFloat(e.latlng.lng.toFixed(7));
+      document.getElementById('f-lat').value = pickedLat;
+      document.getElementById('f-lng').value = pickedLng;
+      document.getElementById('coord-badge').style.display = 'flex';
+      document.getElementById('coord-text').textContent = `${pickedLat.toFixed(6)}, ${pickedLng.toFixed(6)}`;
+
+      if (pendingBldgMarker) map.removeLayer(pendingBldgMarker);
+      pendingBldgMarker = L.circleMarker([pickedLat, pickedLng], {
+        radius: 10, color: selectedColor, fillColor: selectedColor, fillOpacity: 0.8, weight: 2
+      }).addTo(map);
+    }
+  });
+
+  map.on('dblclick', (e) => {
+    if (activeTab === 'routes') {
+      addNode(e.latlng.lat, e.latlng.lng);
+    }
+  });
+}
+
+function updateMapInteractivity() {
+  // Update building markers
+  Object.values(bldgMarkersMap).forEach(m => {
+    if (activeTab === 'buildings') {
+      m.getElement()?.classList.remove('dimmed');
+      m.options.interactive = true;
+    } else {
+      m.getElement()?.classList.add('dimmed');
+      m.options.interactive = false;
+    }
+  });
+
+  // Update route nodes and edges
+  Object.values(routeNodeMarkersMap).forEach(m => {
+    if (activeTab === 'routes') {
+      m.getElement()?.classList.remove('dimmed');
+      m.options.interactive = true;
+    } else {
+      m.getElement()?.classList.add('dimmed');
+      m.options.interactive = true; // Still interactive so we can click to set entry node
+    }
+  });
+  
+  routeEdgePolylines.forEach(p => {
+    if (activeTab === 'routes') {
+      p.getElement()?.classList.remove('dimmed');
+      p.options.interactive = true;
+    } else {
+      p.getElement()?.classList.add('dimmed');
+      p.options.interactive = false;
+    }
+  });
+}
+
+function setStatus(msg) {
+  document.getElementById('save-status').textContent = msg;
+}
+
+// ══════════════════════════════════════════════════════════════
+//  BUILDINGS LOGIC
+// ══════════════════════════════════════════════════════════════
+function renderPickers() {
+  const iconWrap  = document.getElementById('icon-picker');
+  const colorWrap = document.getElementById('color-picker');
+
+  iconWrap.innerHTML = '';
+  ICONS.forEach(ic => {
+    const el = document.createElement('div');
+    el.className  = 'icon-opt' + (ic === selectedIcon ? ' selected' : '');
+    el.textContent = ic;
+    el.onclick = () => { selectedIcon = ic; renderPickers(); };
+    iconWrap.appendChild(el);
+  });
+
+  colorWrap.innerHTML = '';
+  COLORS.forEach(c => {
+    const el = document.createElement('div');
+    el.className  = 'color-opt' + (c === selectedColor ? ' selected' : '');
+    el.style.background = c;
+    el.onclick = () => { selectedColor = c; renderPickers(); };
+    colorWrap.appendChild(el);
+  });
+}
+
+function uid() { return 'bldg_' + Date.now().toString(36); }
+
+function renderBuildingList() {
+  const list = document.getElementById('bldg-list');
+  document.getElementById('bldg-count').textContent = buildings.length;
+  list.innerHTML = '';
+  for (const b of buildings) {
+    const el = document.createElement('div');
+    el.className = 'bldg-item';
+    el.innerHTML = `
+      <div class="bldg-icon-badge" style="background:${b.color||'#00d4ff'}18;border:1px solid ${b.color||'#00d4ff'}33;">${b.icon || '🏢'}</div>
+      <div class="bldg-info">
+        <div class="bldg-name">${b.name}</div>
+        <div class="bldg-meta">${b.lat ? b.lat.toFixed(5) + ', ' + b.lng.toFixed(5) : 'Chưa có toạ độ'}</div>
+      </div>
+      <div style="display:flex;gap:4px;">
+        <button class="btn-ghost" style="padding:4px 8px; font-size:12px;" onclick="startEditBldg('${b.id}')">✏️</button>
+        <button class="btn-ghost" style="padding:4px 8px; font-size:12px; color:#ff4757;" onclick="deleteBldg('${b.id}')">🗑️</button>
+      </div>`;
+    list.appendChild(el);
+  }
+}
+
+function refreshBldgMarkers() {
+  Object.values(bldgMarkersMap).forEach(m => map.removeLayer(m));
+  bldgMarkersMap = {};
+  buildings.forEach(b => {
+    if (!b.lat || !b.lng) return;
+    const marker = L.circleMarker([b.lat, b.lng], {
+      radius: 12, color: '#fff', fillColor: b.color || '#00d4ff', fillOpacity: 0.9, weight: 2, className: 'bldg-marker'
+    }).addTo(map).bindTooltip(`<strong>${b.icon || '🏢'} ${b.name}</strong>`, {direction: 'top', offset: [0, -10]});
+    marker.on('click', () => { if(activeTab === 'buildings') startEditBldg(b.id); });
+    bldgMarkersMap[b.id] = marker;
+  });
+  updateMapInteractivity();
+}
+
+function addOrSaveBldg() {
+  const name = document.getElementById('f-name').value.trim();
+  const desc = document.getElementById('f-desc').value.trim();
+  const lat  = parseFloat(document.getElementById('f-lat').value) || pickedLat;
+  const lng  = parseFloat(document.getElementById('f-lng').value) || pickedLng;
+
+  if (!name) { alert('Vui lòng nhập tên toà nhà!'); return; }
+  if (!lat || !lng) { alert('Vui lòng chọn toạ độ trên bản đồ!'); return; }
+
+  if (editingId) {
+    const idx = buildings.findIndex(b => b.id === editingId);
+    if (idx >= 0) buildings[idx] = { ...buildings[idx], name, description: desc, lat, lng, icon: selectedIcon, color: selectedColor, entryNodes: [...currentEntryNodes] };
+  } else {
+    buildings.push({ id: uid(), name, description: desc, lat, lng, icon: selectedIcon, color: selectedColor, entryNodes: [...currentEntryNodes], poi: [] });
+  }
+
+  clearForm();
+  renderBuildingList();
+  refreshBldgMarkers();
+  setStatus('Có thay đổi chưa lưu...');
+}
+
+function startEditBldg(id) {
+  const b = buildings.find(x => x.id === id);
+  if (!b) return;
+  editingId = id;
+  document.getElementById('f-name').value = b.name;
+  document.getElementById('f-desc').value = b.description || '';
+  document.getElementById('f-lat').value  = b.lat || '';
+  document.getElementById('f-lng').value  = b.lng || '';
+  
+  currentEntryNodes = Array.isArray(b.entryNodes) ? [...b.entryNodes] : [];
+  renderEntryNodeChips();
+  highlightEntryNodes();
+  
+  selectedIcon = b.icon || '🏢';
+  selectedColor = b.color || '#00d4ff';
+  pickedLat = b.lat; pickedLng = b.lng;
+  if (b.lat && b.lng) {
+    document.getElementById('coord-badge').style.display = 'flex';
+    document.getElementById('coord-text').textContent = `${b.lat.toFixed(6)}, ${b.lng.toFixed(6)}`;
+    map.setView([b.lat, b.lng], 18);
+  }
+  renderPickers();
+  document.getElementById('form-title').textContent = '✏️  Chỉnh Sửa Toà Nhà';
+  document.getElementById('btn-add-bldg').textContent = '💾 Cập nhật';
+  document.getElementById('btn-cancel-edit').style.display = 'block';
+}
+
+function clearForm() {
+  editingId = null; pickedLat = null; pickedLng = null;
+  document.getElementById('f-name').value = '';
+  document.getElementById('f-desc').value = '';
+  document.getElementById('f-lat').value  = '';
+  document.getElementById('f-lng').value  = '';
+  currentEntryNodes = [];
+  renderEntryNodeChips();
+  highlightEntryNodes();
+  document.getElementById('coord-badge').style.display = 'none';
+  selectedIcon = '🏢'; selectedColor = '#00d4ff';
+  renderPickers();
+  if (pendingBldgMarker) { map.removeLayer(pendingBldgMarker); pendingBldgMarker = null; }
+  document.getElementById('form-title').textContent = '➕  Thêm Toà Nhà';
+  document.getElementById('btn-add-bldg').textContent = '➕ Thêm toà nhà';
+  document.getElementById('btn-cancel-edit').style.display = 'none';
+}
+
+function deleteBldg(id) {
+  if (!confirm(`Xoá toà nhà này?`)) return;
+  buildings = buildings.filter(x => x.id !== id);
+  renderBuildingList();
+  refreshBldgMarkers();
+  setStatus('Có thay đổi chưa lưu...');
+}
+
+// ══════════════════════════════════════════════════════════════
+//  ROUTES LOGIC
+// ══════════════════════════════════════════════════════════════
+function generateNodeId() { return 'node_' + Math.random().toString(36).substr(2, 6); }
+
+function addNode(lat, lng) {
+  const id = generateNodeId();
+  graphData.nodes[id] = { coords: [lat, lng], label: "Ngã rẽ" };
+  renderGraph();
+  setStatus(`Đã thêm ngã rẽ.`);
+}
+
+function handleNodeClick(id) {
+  if (activeTab !== 'routes') return;
+  if (!selectedNodeId) {
+    selectedNodeId = id;
+    document.getElementById('btn-delete-node').style.display = 'block';
+    renderGraph();
+  } else if (selectedNodeId === id) {
+    selectedNodeId = null;
+    document.getElementById('btn-delete-node').style.display = 'none';
+    renderGraph();
+  } else {
+    addEdge(selectedNodeId, id);
+    selectedNodeId = null;
+    document.getElementById('btn-delete-node').style.display = 'none';
+    renderGraph();
+  }
+}
+
+function handleNodeRightClick(id) {
+  if (activeTab !== 'routes') return;
+  if (confirm('Bạn có chắc muốn xoá điểm này?')) deleteNode(id);
+}
+
+function addEdge(id1, id2) {
+  const exists = graphData.edges.some(e => (e[0] === id1 && e[1] === id2) || (e[0] === id2 && e[1] === id1));
+  if (exists) return;
+  const p1 = graphData.nodes[id1].coords;
+  const p2 = graphData.nodes[id2].coords;
+  const dist = haversineDistance(p1[0], p1[1], p2[0], p2[1]);
+  graphData.edges.push([id1, id2, parseFloat(dist.toFixed(2))]);
+  setStatus(`Đã nối đường dài ${dist.toFixed(2)}m.`);
+}
+
+function deleteNode(id) {
+  delete graphData.nodes[id];
+  graphData.edges = graphData.edges.filter(e => e[0] !== id && e[1] !== id);
+  if (selectedNodeId === id) {
+    selectedNodeId = null;
+    document.getElementById('btn-delete-node').style.display = 'none';
+  }
+  renderGraph();
+  setStatus(`Đã xoá điểm.`);
+}
+
+function deleteSelectedNode() {
+  if (selectedNodeId) deleteNode(selectedNodeId);
+}
+
+function clearGraph() {
+  if (confirm('Xoá toàn bộ mạng lưới đường đi? Hành động này không thể hoàn tác!')) {
+    graphData = { nodes: {}, edges: [] };
+    selectedNodeId = null;
+    document.getElementById('btn-delete-node').style.display = 'none';
+    renderGraph();
+    setStatus(`Đã xoá mạng lưới đường đi.`);
+  }
+}
+
+function renderGraph() {
+  Object.values(routeNodeMarkersMap).forEach(m => map.removeLayer(m));
+  routeEdgePolylines.forEach(p => map.removeLayer(p));
+  routeNodeMarkersMap = {};
+  routeEdgePolylines = [];
+
+  // Draw Edges
+  graphData.edges.forEach((edge, index) => {
+    const n1 = graphData.nodes[edge[0]];
+    const n2 = graphData.nodes[edge[1]];
+    if (n1 && n2) {
+      const polyline = L.polyline([n1.coords, n2.coords], { color: '#00d4ff', weight: 4, opacity: 0.8 }).addTo(map);
+      polyline.on('contextmenu', () => {
+        if(activeTab === 'routes' && confirm('Xoá đoạn đường này?')) {
+          graphData.edges.splice(index, 1);
+          renderGraph();
+        }
+      });
+      routeEdgePolylines.push(polyline);
+    }
+  });
+
+  // Draw Nodes
+  Object.keys(graphData.nodes).forEach(id => {
+    const node = graphData.nodes[id];
+    const isSelected = (id === selectedNodeId);
+    const icon = L.divIcon({ className: `node-marker ${isSelected ? 'selected' : ''}`, iconSize: [14, 14] });
+    const marker = L.marker(node.coords, { icon: icon, zIndexOffset: isSelected ? 1000 : 0 }).addTo(map);
+    marker.on('click', (e) => {
+      if (activeTab === 'routes') {
+        handleNodeClick(id);
+      } else if (activeTab === 'buildings') {
+        L.DomEvent.stopPropagation(e); // prevent map click (which sets bldg gps)
+        const text = `Ngã rẽ (${node.coords[0].toFixed(5)}, ${node.coords[1].toFixed(5)})`;
+        selectEntryNode(id, text);
+      }
+    });
+    marker.on('contextmenu', () => handleNodeRightClick(id));
+    routeNodeMarkersMap[id] = marker;
+  });
+  
+  document.getElementById('stat-nodes').textContent = Object.keys(graphData.nodes).length;
+  document.getElementById('stat-edges').textContent = graphData.edges.length;
+  updateMapInteractivity();
+}
+
+function haversineDistance(lat1, lon1, lat2, lon2) {
+  const R = 6371e3;
+  const φ1 = lat1 * Math.PI/180, φ2 = lat2 * Math.PI/180;
+  const Δφ = (lat2-lat1) * Math.PI/180, Δλ = (lon2-lon1) * Math.PI/180;
+  const a = Math.sin(Δφ/2)*Math.sin(Δφ/2) + Math.cos(φ1)*Math.cos(φ2)*Math.sin(Δλ/2)*Math.sin(Δλ/2);
+  const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1-a));
+  return R * c;
+}
+
+function toggleDropdown() {
+  const list = document.getElementById('entry-node-list');
+  list.style.display = list.style.display === 'none' ? 'block' : 'none';
+}
+
+function selectEntryNode(id) {
+  if (!id) {
+    currentEntryNodes = [];
+  } else {
+    if (!currentEntryNodes.includes(id)) {
+      currentEntryNodes.push(id);
+    } else {
+      currentEntryNodes = currentEntryNodes.filter(n => n !== id);
+    }
+  }
+  document.getElementById('entry-node-list').style.display = 'none';
+  renderEntryNodeChips();
+  highlightEntryNodes();
+}
+
+function renderEntryNodeChips() {
+  const container = document.getElementById('entry-nodes-chips');
+  if (currentEntryNodes.length === 0) {
+    container.innerHTML = `<span style="font-size:12px; color:var(--text-muted); font-style:italic;">Đang dùng tính năng Tự động</span>`;
+    return;
+  }
+  
+  container.innerHTML = '';
+  currentEntryNodes.forEach(id => {
+    const node = graphData.nodes[id];
+    if(!node) return;
+    const text = `(${node.coords[0].toFixed(4)}, ${node.coords[1].toFixed(4)})`;
+    const chip = document.createElement('div');
+    chip.style.cssText = 'background:rgba(255,71,87,0.15); border:1px solid rgba(255,71,87,0.3); border-radius:99px; padding:4px 10px; font-size:11px; color:#ff4757; display:flex; align-items:center; gap:6px;';
+    chip.innerHTML = `<span>📍 ${text}</span> <span style="cursor:pointer; font-weight:bold; font-size:14px;" onclick="selectEntryNode('${id}')">×</span>`;
+    container.appendChild(chip);
+  });
+}
+
+function highlightNode(hoverId) {
+  Object.values(routeNodeMarkersMap).forEach(m => m.getElement()?.classList.remove('highlight-red'));
+  
+  // Highlight currently selected nodes
+  currentEntryNodes.forEach(id => {
+    if (routeNodeMarkersMap[id]) {
+      routeNodeMarkersMap[id].getElement()?.classList.add('highlight-red');
+    }
+  });
+  
+  // Highlight the hovered node additionally
+  if (hoverId && routeNodeMarkersMap[hoverId]) {
+    routeNodeMarkersMap[hoverId].getElement()?.classList.add('highlight-red');
+    map.panTo(routeNodeMarkersMap[hoverId].getLatLng(), { animate: true, duration: 0.3 });
+  }
+}
+
+function highlightEntryNodes() {
+  highlightNode(null);
+}
+
+function restoreHighlight() {
+  highlightEntryNodes();
+}
+
+// ══════════════════════════════════════════════════════════════
+//  API DATA LOADER / SAVER
+// ══════════════════════════════════════════════════════════════
+async function loadAllData() {
+  try {
+    const resB = await fetch('/api/buildings');
+    const dataB = await resB.json();
+    buildings = dataB.buildings || [];
+    
+    // Migrate old data
+    buildings.forEach(b => {
+      if (b.entryNode && !b.entryNodes) {
+        b.entryNodes = [b.entryNode];
+        delete b.entryNode;
+      }
+      if (!b.entryNodes) b.entryNodes = [];
+    });
+    
+    renderBuildingList();
+    refreshBldgMarkers();
+
+    const resG = await fetch('/api/graph');
+    const dataG = await resG.json();
+    // Validate GPS format
+    let isOldFormat = false;
+    const keys = Object.keys(dataG.nodes || {});
+    if (keys.length > 0) {
+      const first = dataG.nodes[keys[0]];
+      if (first.coords && (first.coords.length === 3 || Math.abs(first.coords[0]) > 90)) isOldFormat = true;
+    }
+    if (isOldFormat) {
+      alert('Phát hiện dữ liệu định dạng XYZ cũ. Sẽ làm trống bản đồ đường đi.');
+      graphData = { nodes: {}, edges: [] };
+    } else {
+      graphData = dataG || { nodes: {}, edges: [] };
+      if (!graphData.nodes) graphData.nodes = {};
+      if (!graphData.edges) graphData.edges = [];
+    }
+    
+    // Populate entry node dropdown
+    const list = document.getElementById('entry-node-list');
+    list.innerHTML = `<div class="dropdown-item" onmouseenter="highlightNode('')" onclick="selectEntryNode('')">— Tự động tìm điểm gần nhất — (Xoá tất cả)</div>`;
+    Object.keys(graphData.nodes).forEach(id => {
+      const n = graphData.nodes[id];
+      const text = `Ngã rẽ (${n.coords[0].toFixed(5)}, ${n.coords[1].toFixed(5)})`;
+      list.innerHTML += `<div class="dropdown-item" onmouseenter="highlightNode('${id}')" onclick="selectEntryNode('${id}')">${text}</div>`;
+    });
+
+    renderGraph();
+    
+    setStatus('Đã tải toàn bộ dữ liệu.');
+    
+    // Auto center map based on buildings or nodes
+    if(buildings.length > 0 && buildings[0].lat) {
+      map.setView([buildings[0].lat, buildings[0].lng], 17);
+    } else if (keys.length > 0) {
+      map.setView(graphData.nodes[keys[0]].coords, 17);
+    } else {
+      // Default to central Vietnam if geolocation fails
+      map.setView([10.875, 106.797], 17);
+    }
+  } catch(e) { console.error(e); setStatus('Lỗi khi tải dữ liệu!'); }
+}
+
+async function saveAll() {
+  const btn = document.querySelector('.btn-save-all');
+  btn.textContent = 'Đang lưu...';
+  
+  try {
+    // Save Buildings
+    const resB = await fetch('/api/buildings', {
+      method: 'POST', headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ buildings })
+    });
+    
+    // Save Graph
+    const resG = await fetch('/api/graph', {
+      method: 'POST', headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(graphData)
+    });
+    
+    if(resB.ok && resG.ok) {
+      setStatus('✅ Đã lưu thành công!');
+    } else {
+      setStatus('❌ Có lỗi khi lưu.');
+    }
+  } catch(e) {
+    console.error(e);
+    setStatus('❌ Lỗi mạng khi lưu.');
+  }
+  setTimeout(() => { btn.textContent = '💾 Lưu Tất Cả'; }, 1000);
+}
+
+window.onload = init;
+</script>
 </body>
 </html>

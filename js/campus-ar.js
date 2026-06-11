@@ -26,6 +26,8 @@ document.addEventListener('touchend', (e) => {
 //  STATE
 // ══════════════════════════════════════════════════════════════
 let buildings     = [];  // loaded from /api/buildings
+let graph         = { nodes: {}, edges: [] }; // loaded from /api/graph
+let activeRoute   = [];  // array of {lat, lng} for current navigation
 let userPos       = null; // { lat, lng, accuracy }
 let compassHeading = null; // degrees from north, CW
 let deviceBeta    = 90;   // tilt: 0=flat, 90=upright
@@ -185,8 +187,232 @@ function renderFrame() {
     drawBuildingLabel(b, p);
   }
 
+  // Draw HUD Direction Arrow if active route exists
+  if (selectedBldg && activeRoute.length > 0) {
+    drawNavigationArrow();
+  }
+
   // Compass rose (bottom-right corner)
   drawCompassRose(W - 52, H - (document.getElementById('bottom-panel').offsetHeight || 0) - 72);
+}
+
+// ══════════════════════════════════════════════════════════════
+//  PATHFINDING (A*) & HUD ARROW
+// ══════════════════════════════════════════════════════════════
+
+function calculateRoute(targetBldg) {
+  if (!userPos || !graph.nodes || Object.keys(graph.nodes).length === 0) {
+    // Fallback to straight line
+    activeRoute = [{ lat: targetBldg.lat, lng: targetBldg.lng }];
+    return;
+  }
+
+  const nodes = Object.keys(graph.nodes);
+  
+  // Find closest graph node to user
+  let startNode = null;
+  let minStartDist = Infinity;
+  for (const id of nodes) {
+    const coords = graph.nodes[id].coords;
+    const d = haversine(userPos.lat, userPos.lng, coords[0], coords[1]);
+    if (d < minStartDist) { minStartDist = d; startNode = id; }
+  }
+
+  // Find target nodes
+  let endNodes = [];
+  if (targetBldg.entryNodes && targetBldg.entryNodes.length > 0) {
+    endNodes = targetBldg.entryNodes.filter(id => graph.nodes[id]);
+  }
+  
+  // Fallback to legacy entryNode or closest node
+  if (endNodes.length === 0) {
+    if (targetBldg.entryNode && graph.nodes[targetBldg.entryNode]) {
+      endNodes = [targetBldg.entryNode];
+    } else {
+      let minEndDist = Infinity;
+      let endNode = null;
+      for (const id of nodes) {
+        const coords = graph.nodes[id].coords;
+        const d = haversine(targetBldg.lat, targetBldg.lng, coords[0], coords[1]);
+        if (d < minEndDist) { minEndDist = d; endNode = id; }
+      }
+      if (endNode) endNodes.push(endNode);
+    }
+  }
+
+  if (!startNode || endNodes.length === 0) {
+    activeRoute = [{ lat: targetBldg.lat, lng: targetBldg.lng }];
+    return;
+  }
+
+  // Build adjacency list
+  const adj = {};
+  nodes.forEach(n => adj[n] = []);
+  graph.edges.forEach(e => {
+    if(adj[e[0]] && adj[e[1]]) {
+      adj[e[0]].push({ to: e[1], cost: e[2] });
+      adj[e[1]].push({ to: e[0], cost: e[2] }); // assuming undirected
+    }
+  });
+
+  // A* Algorithm
+  const openSet = [startNode];
+  const cameFrom = {};
+  const gScore = {};
+  const fScore = {};
+  nodes.forEach(n => { gScore[n] = Infinity; fScore[n] = Infinity; });
+  gScore[startNode] = 0;
+  
+  const heuristic = (n) => {
+    const c1 = graph.nodes[n].coords;
+    let minDist = Infinity;
+    for (const en of endNodes) {
+      const c2 = graph.nodes[en].coords;
+      const d = haversine(c1[0], c1[1], c2[0], c2[1]);
+      if (d < minDist) minDist = d;
+    }
+    return minDist;
+  };
+  
+  fScore[startNode] = heuristic(startNode);
+
+  while (openSet.length > 0) {
+    // Get node with lowest fScore
+    openSet.sort((a, b) => fScore[a] - fScore[b]);
+    const current = openSet.shift();
+
+    if (endNodes.includes(current)) {
+      // Reconstruct path
+      const path = [current];
+      let curr = current;
+      while (cameFrom[curr]) {
+        curr = cameFrom[curr];
+        path.unshift(curr);
+      }
+      activeRoute = path.map(id => ({
+        lat: graph.nodes[id].coords[0],
+        lng: graph.nodes[id].coords[1]
+      }));
+      // Add the final building destination
+      activeRoute.push({ lat: targetBldg.lat, lng: targetBldg.lng });
+      return;
+    }
+
+    for (const neighbor of adj[current]) {
+      const tentative_g = gScore[current] + neighbor.cost;
+      if (tentative_g < gScore[neighbor.to]) {
+        cameFrom[neighbor.to] = current;
+        gScore[neighbor.to] = tentative_g;
+        fScore[neighbor.to] = tentative_g + heuristic(neighbor.to);
+        if (!openSet.includes(neighbor.to)) openSet.push(neighbor.to);
+      }
+    }
+  }
+
+  // Fallback if no path found
+  activeRoute = [{ lat: targetBldg.lat, lng: targetBldg.lng }];
+}
+
+function updateActiveRoute() {
+  if (activeRoute.length === 0 || !userPos) return;
+
+  // Pop waypoints that we are close to (e.g. within 8 meters)
+  const REACHED_DIST = 8;
+  while (activeRoute.length > 1) { // keep at least the last point
+    const wp = activeRoute[0];
+    const d = haversine(userPos.lat, userPos.lng, wp.lat, wp.lng);
+    if (d < REACHED_DIST) {
+      activeRoute.shift(); // remove reached waypoint
+    } else {
+      break;
+    }
+  }
+}
+
+function drawNavigationArrow() {
+  if (!userPos || compassHeading === null || activeRoute.length === 0) return;
+  
+  updateActiveRoute();
+  if (activeRoute.length === 0) return;
+  
+  const target = activeRoute[0];
+  const dist = haversine(userPos.lat, userPos.lng, target.lat, target.lng);
+  
+  if (activeRoute.length === 1 && dist < 5) {
+    const cx = canvas.width / 2;
+    const cy = canvas.height / 2 + 50;
+    ctx.save();
+    ctx.textAlign = 'center';
+    ctx.textBaseline = 'middle';
+    ctx.shadowColor = '#000';
+    ctx.shadowBlur = 10;
+    ctx.fillStyle = '#00ff88';
+    ctx.font = 'bold 32px Inter, sans-serif';
+    ctx.fillText("🎉 Đã đến nơi!", cx, cy);
+    ctx.restore();
+    return;
+  }
+  
+  const bearing = getBearing(userPos.lat, userPos.lng, target.lat, target.lng);
+  
+  let angleDiff = bearing - compassHeading;
+  while (angleDiff >  180) angleDiff -= 360;
+  while (angleDiff < -180) angleDiff += 360;
+
+  const cx = canvas.width / 2;
+  const cy = canvas.height / 2 + 50; // slightly below center
+
+  ctx.save();
+  ctx.translate(cx, cy);
+  
+  // HUD Arrow Glow
+  ctx.shadowColor = '#00d4ff';
+  ctx.shadowBlur = 20;
+
+  // Draw Arrow
+  ctx.rotate(angleDiff * Math.PI / 180);
+  ctx.beginPath();
+  ctx.moveTo(0, -60); // tip
+  ctx.lineTo(-40, 40); // bottom left
+  ctx.lineTo(0, 20); // bottom center
+  ctx.lineTo(40, 40); // bottom right
+  ctx.closePath();
+  
+  // Gradient fill
+  const grad = ctx.createLinearGradient(0, -60, 0, 40);
+  grad.addColorStop(0, '#00d4ff');
+  grad.addColorStop(1, 'rgba(0,212,255,0.2)');
+  ctx.fillStyle = grad;
+  ctx.fill();
+  
+  ctx.strokeStyle = '#fff';
+  ctx.lineWidth = 3;
+  ctx.stroke();
+
+  ctx.restore();
+
+  // Draw text instructions below
+  ctx.save();
+  ctx.textAlign = 'center';
+  ctx.textBaseline = 'top';
+  ctx.shadowColor = '#000';
+  ctx.shadowBlur = 10;
+  ctx.fillStyle = '#fff';
+  
+  // Decide instruction based on angle
+  let instruction = "Đi thẳng";
+  if (angleDiff > 25 && angleDiff <= 100) instruction = "Rẽ phải";
+  else if (angleDiff < -25 && angleDiff >= -100) instruction = "Rẽ trái";
+  else if (Math.abs(angleDiff) > 100) instruction = "Quay lại";
+
+  ctx.font = 'bold 24px Inter, sans-serif';
+  ctx.fillText(instruction, cx, cy + 80);
+  
+  ctx.font = '16px Inter, sans-serif';
+  ctx.fillStyle = '#00d4ff';
+  ctx.fillText(`còn ${Math.round(dist)}m`, cx, cy + 110);
+  
+  ctx.restore();
 }
 
 // ── Connector line from label to horizon ────────────────────
@@ -516,8 +742,12 @@ function selectBuilding(bldg) {
   if (!selectedBldg) {
     card.style.display  = 'none';
     panel.style.display = 'block';
+    activeRoute = []; // Clear route
     return;
   }
+
+  // Calculate new route when building selected
+  calculateRoute(selectedBldg);
 
   const dist = userPos
     ? haversine(userPos.lat, userPos.lng, bldg.lat, bldg.lng)
@@ -626,6 +856,15 @@ async function main() {
     buildings = data.buildings || [];
   } catch (e) {
     buildings = [];
+  }
+
+  try {
+    const res = await fetch('/api/graph');
+    graph = await res.json();
+    if (!graph.nodes) graph.nodes = {};
+    if (!graph.edges) graph.edges = [];
+  } catch (e) {
+    console.warn('Could not load graph');
   }
 
   setupCanvas();
